@@ -15,6 +15,7 @@
         .total-value { font-size: 2rem; font-weight: 800; color: #fff; }
         .currency-label { font-size: 1rem; color: #888; font-weight: normal; }
         .refresh-time { font-size: 0.75rem; color: #666; text-align: center; margin-top: 20px; }
+        .btn-update { width: 100%; margin-top: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -22,18 +23,21 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4 class="m-0 fw-bold">My Portfolio</h4>
-        <button class="btn btn-outline-secondary btn-sm" onclick="openSettings()">⚙️ Shares</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="openSettings()">⚙️ Settings</button>
     </div>
 
     <div class="card mb-4 bg-gradient-primary">
         <div class="card-body text-center p-4">
             <div class="text-secondary text-uppercase small">Total Assets (TWD)</div>
             <div class="total-value" id="totalValue">Loading...</div>
+            <button id="updateBtn" class="btn btn-primary btn-sm btn-update" onclick="triggerUpdate()">
+                ⚡ Update Market Data
+            </button>
+            <div id="updateStatus" class="mt-2 small text-warning" style="display:none;"></div>
         </div>
     </div>
 
-    <div id="stock-container">
-        </div>
+    <div id="stock-container"></div>
 
     <div class="refresh-time">
         Last Market Update: <span id="lastUpdated">--</span>
@@ -44,28 +48,44 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Edit Holdings (Shares)</h5>
+                <h5 class="modal-title">Settings</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="holdingsForm">
-                    <div class="mb-3">
-                        <label class="form-label">0050.TW (Yuanta 50)</label>
-                        <input type="number" class="form-control" id="input-0050.TW">
+                <ul class="nav nav-tabs mb-3" id="myTab" role="tablist">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#holdings-tab">Shares</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#api-tab">Connection</button></li>
+                </ul>
+                
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="holdings-tab">
+                        <form id="holdingsForm">
+                            <div class="mb-3"><label class="form-label">0050.TW</label><input type="number" class="form-control" id="input-0050.TW"></div>
+                            <div class="mb-3"><label class="form-label">006208.TW</label><input type="number" class="form-control" id="input-006208.TW"></div>
+                            <div class="mb-3"><label class="form-label">00878.TW</label><input type="number" class="form-control" id="input-00878.TW"></div>
+                        </form>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">006208.TW (Fubon 50)</label>
-                        <input type="number" class="form-control" id="input-006208.TW">
+
+                    <div class="tab-pane fade" id="api-tab">
+                        <div class="alert alert-secondary small">To make the button work, fill this in:</div>
+                        <div class="mb-3">
+                            <label class="form-label">GitHub Username</label>
+                            <input type="text" class="form-control" id="gh-username" placeholder="e.g. johndoe">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Repo Name</label>
+                            <input type="text" class="form-control" id="gh-repo" placeholder="e.g. stock-tracker">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">GitHub Token (PAT)</label>
+                            <input type="password" class="form-control" id="gh-token" placeholder="ghp_...">
+                            <div class="form-text small">Must have 'workflow' scope.</div>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">00878.TW (Cathay Div)</label>
-                        <input type="number" class="form-control" id="input-00878.TW">
-                    </div>
-                </form>
+                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-primary w-100" onclick="saveHoldings()">Save</button>
-                <button type="button" class="btn btn-outline-danger w-100 mt-2" onclick="resetToDefaults()">Reset to Defaults</button>
+                <button type="button" class="btn btn-primary w-100" onclick="saveSettings()">Save Settings</button>
             </div>
         </div>
     </div>
@@ -74,31 +94,23 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const symbols = ["0050.TW", "006208.TW", "00878.TW"];
-    
-    // YOUR DEFAULT SHARES
-    const defaultHoldings = {
-        "0050.TW": 46020,
-        "006208.TW": 19552,
-        "00878.TW": 52657
-    };
+    const defaultHoldings = { "0050.TW": 46020, "006208.TW": 19552, "00878.TW": 52657 };
 
-    function getHoldings() {
-        // Checks storage first, if empty, uses your defaults
-        const stored = JSON.parse(localStorage.getItem('tw_holdings'));
-        if (stored) return stored;
-        return defaultHoldings;
+    function getSettings() {
+        return JSON.parse(localStorage.getItem('tw_settings')) || {
+            holdings: defaultHoldings,
+            auth: { user: '', repo: '', token: '' }
+        };
     }
 
     async function loadData() {
         try {
-            const response = await fetch('data.json');
+            const response = await fetch('data.json?t=' + new Date().getTime()); // Prevent caching
             if (!response.ok) throw new Error("Data file not found");
             const data = await response.json();
-            const holdings = getHoldings();
-            renderDashboard(data, holdings);
+            renderDashboard(data, getSettings().holdings);
         } catch (error) {
             console.error(error);
-            document.getElementById('totalValue').innerText = "Loading...";
         }
     }
 
@@ -106,22 +118,19 @@
         const container = document.getElementById('stock-container');
         container.innerHTML = '';
         let totalVal = 0;
-
         document.getElementById('lastUpdated').innerText = data.last_updated;
 
         symbols.forEach(sym => {
             const stock = data.stocks[sym];
             if (!stock) return;
-
             const shares = parseFloat(holdings[sym]) || 0;
             const marketValue = shares * stock.price;
             totalVal += marketValue;
-
             const isUp = stock.change >= 0;
             const colorClass = isUp ? 'price-up' : 'price-down';
             const sign = isUp ? '+' : '';
 
-            const html = `
+            container.innerHTML += `
                 <div class="card">
                     <div class="card-body d-flex justify-content-between align-items-center">
                         <div>
@@ -131,43 +140,82 @@
                         </div>
                         <div class="text-end">
                             <div class="stock-price">NT$${stock.price.toFixed(2)}</div>
-                            <div class="${colorClass} small fw-bold">
-                                ${sign}${stock.change.toFixed(2)} (${sign}${stock.change_percent.toFixed(2)}%)
-                            </div>
+                            <div class="${colorClass} small fw-bold">${sign}${stock.change.toFixed(2)} (${sign}${stock.change_percent.toFixed(2)}%)</div>
                             <div class="mt-2 text-white fw-bold">NT$${Math.round(marketValue).toLocaleString()}</div>
                         </div>
                     </div>
-                </div>
-            `;
-            container.innerHTML += html;
+                </div>`;
         });
-
         document.getElementById('totalValue').innerHTML = `<span class="currency-label">NT$</span> ${Math.round(totalVal).toLocaleString()}`;
     }
 
-    // Modal Functions
+    // --- API TRIGGER LOGIC ---
+    async function triggerUpdate() {
+        const auth = getSettings().auth;
+        const statusEl = document.getElementById('updateStatus');
+        const btn = document.getElementById('updateBtn');
+
+        if (!auth.user || !auth.repo || !auth.token) {
+            alert("Please go to Settings > Connection and enter your GitHub details first.");
+            openSettings();
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerText = "Requesting...";
+        statusEl.style.display = 'block';
+        statusEl.innerText = "Contacting GitHub...";
+
+        try {
+            const url = `https://api.github.com/repos/${auth.user}/${auth.repo}/actions/workflows/update.yml/dispatches`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/vnd.github+json',
+                    'Authorization': `Bearer ${auth.token}`,
+                },
+                body: JSON.stringify({ ref: 'main' }) // or 'master'
+            });
+
+            if (response.ok) {
+                statusEl.innerText = "Update started! Wait ~60s then refresh page.";
+                statusEl.className = "mt-2 small text-success";
+                setTimeout(() => { btn.disabled = false; btn.innerText = "⚡ Update Market Data"; }, 5000);
+            } else {
+                throw new Error("GitHub refused. Check Token/Repo name.");
+            }
+        } catch (e) {
+            statusEl.innerText = "Error: " + e.message;
+            statusEl.className = "mt-2 small text-danger";
+            btn.disabled = false;
+        }
+    }
+
+    // --- SETTINGS LOGIC ---
     const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
 
     function openSettings() {
-        const holdings = getHoldings();
-        symbols.forEach(sym => {
-            document.getElementById(`input-${sym}`).value = holdings[sym];
-        });
+        const s = getSettings();
+        // Load Shares
+        symbols.forEach(sym => document.getElementById(`input-${sym}`).value = s.holdings[sym] || 0);
+        // Load Auth
+        document.getElementById('gh-username').value = s.auth.user;
+        document.getElementById('gh-repo').value = s.auth.repo;
+        document.getElementById('gh-token').value = s.auth.token;
         modal.show();
     }
 
-    function saveHoldings() {
+    function saveSettings() {
         const holdings = {};
-        symbols.forEach(sym => {
-            holdings[sym] = document.getElementById(`input-${sym}`).value;
-        });
-        localStorage.setItem('tw_holdings', JSON.stringify(holdings));
-        modal.hide();
-        loadData(); 
-    }
+        symbols.forEach(sym => holdings[sym] = document.getElementById(`input-${sym}`).value);
+        
+        const auth = {
+            user: document.getElementById('gh-username').value.trim(),
+            repo: document.getElementById('gh-repo').value.trim(),
+            token: document.getElementById('gh-token').value.trim()
+        };
 
-    function resetToDefaults() {
-        localStorage.removeItem('tw_holdings');
+        localStorage.setItem('tw_settings', JSON.stringify({ holdings, auth }));
         modal.hide();
         loadData();
     }
