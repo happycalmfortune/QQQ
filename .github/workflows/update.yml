@@ -1,0 +1,38 @@
+name: Update Stock Prices
+
+on:
+  schedule:
+    # Runs every 6 hours (UTC time)
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Allows manual run button
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write # Important: Allows the action to save the JSON file
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        pip install yfinance pytz
+
+    - name: Run script
+      run: python update_prices.py
+
+    - name: Commit and Push changes
+      run: |
+        git config --global user.name 'GitHub Action'
+        git config --global user.email 'action@github.com'
+        git add data.json
+        # Only commit if data.json has changed
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Update stock prices" && git push)
