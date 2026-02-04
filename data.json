@@ -1,26 +1,26 @@
 {
-    "last_updated": "2026-02-04 08:57:55",
+    "last_updated": "2026-02-04 09:41:33",
     "stocks": {
         "0050.TW": {
-            "name": "Yuanta Taiwan 50",
-            "price": 73.03,
-            "change": 1.58,
-            "change_percent": 2.21,
-            "timestamp": "2026-02-04 08:57:55"
+            "name": "元大台灣50",
+            "price": 72.5,
+            "change": -0.4,
+            "change_percent": -0.55,
+            "timestamp": "2026-02-04 09:41:33"
         },
         "006208.TW": {
-            "name": "Fubon Taiwan 50",
-            "price": 168.8,
-            "change": 3.4,
-            "change_percent": 2.06,
-            "timestamp": "2026-02-04 08:57:56"
+            "name": "富邦台50",
+            "price": 167.75,
+            "change": -0.95,
+            "change_percent": -0.56,
+            "timestamp": "2026-02-04 09:41:33"
         },
         "00878.TW": {
-            "name": "Cathay Sust. Div.",
-            "price": 22.81,
-            "change": 0.34,
-            "change_percent": 1.51,
-            "timestamp": "2026-02-04 08:57:56"
+            "name": "國泰永續高股息",
+            "price": 22.78,
+            "change": -0.04,
+            "change_percent": -0.18,
+            "timestamp": "2026-02-04 09:41:33"
         }
     }
 }
