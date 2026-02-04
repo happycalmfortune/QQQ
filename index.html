@@ -61,4 +61,185 @@
                     <div class="tab-pane fade show active" id="holdings-tab">
                         <form id="holdingsForm">
                             <div class="mb-3"><label class="form-label">0050 (元大台灣50)</label><input type="number" class="form-control" id="input-0050.TW"></div>
-                            <div class="mb-3"><label class="form-label">006208 (富邦台50)</label><input type="number"
+                            <div class="mb-3"><label class="form-label">006208 (富邦台50)</label><input type="number" class="form-control" id="input-006208.TW"></div>
+                            <div class="mb-3"><label class="form-label">00878 (國泰永續高股息)</label><input type="number" class="form-control" id="input-00878.TW"></div>
+                        </form>
+                    </div>
+
+                    <div class="tab-pane fade" id="api-tab">
+                        <div class="alert alert-secondary small">若要啟用「更新即時股價」按鈕，請填寫以下資訊：</div>
+                        <div class="mb-3">
+                            <label class="form-label">GitHub 使用者名稱 (Username)</label>
+                            <input type="text" class="form-control" id="gh-username" placeholder="例如：james123">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">GitHub 儲存庫名稱 (Repo Name)</label>
+                            <input type="text" class="form-control" id="gh-repo" placeholder="例如：stock-tracker">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">GitHub Token (PAT 密鑰)</label>
+                            <input type="password" class="form-control" id="gh-token" placeholder="ghp_...">
+                            <div class="form-text small">必須勾選 'workflow' 權限。</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary w-100" onclick="saveSettings()">儲存設定</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const symbols = ["0050.TW", "006208.TW", "00878.TW"];
+    const defaultHoldings = { "0050.TW": 46020, "006208.TW": 19552, "00878.TW": 52657 };
+
+    function getSettings() {
+        return JSON.parse(localStorage.getItem('tw_settings')) || {
+            holdings: defaultHoldings,
+            auth: { user: '', repo: '', token: '' }
+        };
+    }
+
+   async function loadData() {
+        const valueEl = document.getElementById('totalValue');
+        try {
+            // 1. 嘗試讀取檔案
+            const response = await fetch('data.json?t=' + new Date().getTime());
+            
+            // 2. 如果檔案不存在 (404)
+            if (!response.ok) {
+                throw new Error("找不到 data.json (請檢查 Action 是否執行成功)");
+            }
+
+            // 3. 嘗試解析 JSON
+            const text = await response.text(); // 先讀成文字以免直接掛掉
+            try {
+                const data = JSON.parse(text);
+                renderDashboard(data, getSettings().holdings);
+            } catch (e) {
+                throw new Error("JSON 格式錯誤 (Python 產生的資料有問題)");
+            }
+            
+        } catch (error) {
+            // 把錯誤直接印在畫面上
+            console.error(error);
+            valueEl.innerHTML = `<div style="font-size:1rem; color:red;">錯誤：${error.message}</div>`;
+            document.getElementById('stock-container').innerHTML = `<div class="alert alert-danger small">${error.message}<br>請到 GitHub Actions 檢查紀錄。</div>`;
+        }
+    }
+
+    function renderDashboard(data, holdings) {
+        const container = document.getElementById('stock-container');
+        container.innerHTML = '';
+        let totalVal = 0;
+        document.getElementById('lastUpdated').innerText = data.last_updated;
+
+        symbols.forEach(sym => {
+            const stock = data.stocks[sym];
+            if (!stock) return;
+            const shares = parseFloat(holdings[sym]) || 0;
+            const marketValue = shares * stock.price;
+            totalVal += marketValue;
+            
+            // 台灣習慣：漲是紅色，跌是綠色
+            const isUp = stock.change >= 0;
+            const colorClass = isUp ? 'price-up' : 'price-down';
+            const sign = isUp ? '+' : '';
+
+            container.innerHTML += `
+                <div class="card">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-bold fs-5">${sym.replace('.TW', '')}</div>
+                            <div class="stock-name">${stock.name}</div>
+                            <div class="mt-2 text-white-50 small">持有股數: ${shares.toLocaleString()}</div>
+                        </div>
+                        <div class="text-end">
+                            <div class="stock-price">NT$${stock.price.toFixed(2)}</div>
+                            <div class="${colorClass} small fw-bold">${sign}${stock.change.toFixed(2)} (${sign}${stock.change_percent.toFixed(2)}%)</div>
+                            <div class="mt-2 text-white fw-bold">NT$${Math.round(marketValue).toLocaleString()}</div>
+                        </div>
+                    </div>
+                </div>`;
+        });
+        document.getElementById('totalValue').innerHTML = `<span class="currency-label">NT$</span> ${Math.round(totalVal).toLocaleString()}`;
+    }
+
+    // --- API TRIGGER LOGIC ---
+    async function triggerUpdate() {
+        const auth = getSettings().auth;
+        const statusEl = document.getElementById('updateStatus');
+        const btn = document.getElementById('updateBtn');
+
+        if (!auth.user || !auth.repo || !auth.token) {
+            alert("請先至 [設定] > [連線設定] 輸入您的 GitHub 資訊，才能使用此功能。");
+            openSettings();
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerText = "請求更新中...";
+        statusEl.style.display = 'block';
+        statusEl.innerText = "正在連線 GitHub...";
+
+        try {
+            const url = `https://api.github.com/repos/${auth.user}/${auth.repo}/actions/workflows/update.yml/dispatches`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/vnd.github+json',
+                    'Authorization': `Bearer ${auth.token}`,
+                },
+                body: JSON.stringify({ ref: 'main' }) 
+            });
+
+            if (response.ok) {
+                statusEl.innerText = "更新已啟動！請等待約 60 秒後重新整理頁面。";
+                statusEl.className = "mt-2 small text-success";
+                setTimeout(() => { btn.disabled = false; btn.innerText = "⚡ 更新即時股價"; }, 5000);
+            } else {
+                throw new Error("GitHub 拒絕存取，請檢查 Token 或 Repo 名稱。");
+            }
+        } catch (e) {
+            statusEl.innerText = "錯誤: " + e.message;
+            statusEl.className = "mt-2 small text-danger";
+            btn.disabled = false;
+        }
+    }
+
+    // --- SETTINGS LOGIC ---
+    const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
+
+    function openSettings() {
+        const s = getSettings();
+        // Load Shares
+        symbols.forEach(sym => document.getElementById(`input-${sym}`).value = s.holdings[sym] || 0);
+        // Load Auth
+        document.getElementById('gh-username').value = s.auth.user;
+        document.getElementById('gh-repo').value = s.auth.repo;
+        document.getElementById('gh-token').value = s.auth.token;
+        modal.show();
+    }
+
+    function saveSettings() {
+        const holdings = {};
+        symbols.forEach(sym => holdings[sym] = document.getElementById(`input-${sym}`).value);
+        
+        const auth = {
+            user: document.getElementById('gh-username').value.trim(),
+            repo: document.getElementById('gh-repo').value.trim(),
+            token: document.getElementById('gh-token').value.trim()
+        };
+
+        localStorage.setItem('tw_settings', JSON.stringify({ holdings, auth }));
+        modal.hide();
+        loadData();
+    }
+
+    loadData();
+</script>
+</body>
+</html>
