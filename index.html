@@ -15,13 +15,10 @@
         .total-value { font-size: 2rem; font-weight: 800; color: #fff; }
         .refresh-time { font-size: 0.75rem; color: #666; text-align: center; margin-top: 15px; }
         .btn-update { width: 100%; margin-top: 10px; font-weight: bold; }
-        
-        /* 計數器與歷史紀錄樣式 */
         .counter-box { font-size: 0.85rem; color: #ffa726; margin-top: 8px; font-weight: 500; }
         .history-list { max-height: 200px; overflow-y: auto; font-size: 0.9rem; }
-        
-        /* 錯誤訊息樣式 */
         #error-log { color: #ff5252; background: #2c0b0b; padding: 10px; border-radius: 5px; display: none; margin-bottom: 20px; font-size: 0.9rem; }
+        .cost-note { font-size: 0.7rem; color: #666; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -36,12 +33,11 @@
 
     <div class="card mb-4 bg-gradient-primary text-center">
         <div class="card-body p-4">
-            <div class="text-secondary small">總資產價值 (TWD)</div>
+            <div class="text-secondary small">預估淨資產 (TWD)</div>
             <div class="total-value" id="totalValue">載入中...</div>
+            <div class="cost-note">已反映 0.24% 交易成本 (x0.9976)</div>
             
-            <div class="counter-box" id="counterDisplay">
-                今天已看盤 0 次 | 本月累計 0 次
-            </div>
+            <div class="counter-box" id="counterDisplay">今天已看盤 0 次 | 本月累計 0 次</div>
 
             <button id="updateBtn" class="btn btn-primary btn-sm btn-update" onclick="triggerUpdate()">
                 ⚡ 更新即時股價
@@ -74,30 +70,16 @@
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="holdings-tab">
                         <form id="holdingsForm">
-                            <div class="mb-3"><label class="form-label">0050 (元大台灣50)</label><input type="number" class="form-control" id="input-0050.TW"></div>
-                            <div class="mb-3"><label class="form-label">006208 (富邦台50)</label><input type="number" class="form-control" id="input-006208.TW"></div>
-                            <div class="mb-3"><label class="form-label">00878 (國泰永續高股息)</label><input type="number" class="form-control" id="input-00878.TW"></div>
+                            <div class="mb-3"><label class="form-label">0050</label><input type="number" class="form-control" id="input-0050.TW"></div>
+                            <div class="mb-3"><label class="form-label">006208</label><input type="number" class="form-control" id="input-006208.TW"></div>
+                            <div class="mb-3"><label class="form-label">00878</label><input type="number" class="form-control" id="input-00878.TW"></div>
                         </form>
                     </div>
-
                     <div class="tab-pane fade" id="connection-tab">
-                        <div class="alert alert-secondary small p-2">
-                            為了安全，Token 將只儲存在您的手機/電腦瀏覽器中，不會公開。
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">GitHub Username</label>
-                            <input type="text" class="form-control" id="gh-user" placeholder="e.g. james123">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Repository Name</label>
-                            <input type="text" class="form-control" id="gh-repo" placeholder="e.g. stock-tracker">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">GitHub Token (PAT)</label>
-                            <input type="password" class="form-control" id="gh-token" placeholder="ghp_...">
-                        </div>
+                        <div class="mb-3"><label class="form-label">GitHub User</label><input type="text" class="form-control" id="gh-user"></div>
+                        <div class="mb-3"><label class="form-label">Repo Name</label><input type="text" class="form-control" id="gh-repo"></div>
+                        <div class="mb-3"><label class="form-label">Token (PAT)</label><input type="password" class="form-control" id="gh-token"></div>
                     </div>
-
                     <div class="tab-pane fade" id="history-tab">
                         <h6>本月每日看盤次數：</h6>
                         <div class="history-list list-group" id="historyList"></div>
@@ -113,75 +95,49 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // 🛡️ 全域錯誤攔截
-    window.onerror = function(msg, url, lineNo, columnNo, error) {
-        const log = document.getElementById('error-log');
-        log.style.display = 'block';
-        log.innerHTML += `❌ 程式錯誤: ${msg}<br>`;
-        return false;
-    };
-
     const symbols = ["0050.TW", "006208.TW", "00878.TW"];
     const DEFAULT_HOLDINGS = { "0050.TW": 46020, "006208.TW": 19552, "00878.TW": 52657 };
 
-    // --- 讀取/儲存設定 (包含 Token) ---
     function getStoredData() {
         const holdings = JSON.parse(localStorage.getItem('tw_holdings')) || DEFAULT_HOLDINGS;
         const auth = JSON.parse(localStorage.getItem('tw_auth')) || { user: '', repo: '', token: '' };
         return { holdings, auth };
     }
 
-    // --- 🕒 計數器邏輯 ---
     function incrementCounter() {
         try {
-            const now = new Date();
-            const today = now.toLocaleDateString('en-CA');
-            const monthKey = today.substring(0, 7);
+            const today = new Date().toLocaleDateString('en-CA');
             let history = JSON.parse(localStorage.getItem('market_check_history')) || {};
-            
             history[today] = (history[today] || 0) + 1;
             localStorage.setItem('market_check_history', JSON.stringify(history));
-            updateCounterUI(history, today, monthKey);
-        } catch(e) { console.error("Counter Error", e); }
+            updateCounterUI(history, today, today.substring(0, 7));
+        } catch(e) {}
     }
 
     function updateCounterUI(history, today, monthKey) {
         let monthlyTotal = 0;
         let listHtml = '';
-        const sortedDates = Object.keys(history).sort().reverse();
-
-        sortedDates.forEach(date => {
+        Object.keys(history).sort().reverse().forEach(date => {
             if (date.startsWith(monthKey)) {
                 monthlyTotal += history[date];
-                listHtml += `<div class="list-group-item d-flex justify-content-between bg-dark text-light border-secondary">
-                                <span>${date}</span><span class="badge bg-primary rounded-pill">${history[date]} 次</span>
-                             </div>`;
+                listHtml += `<div class="list-group-item d-flex justify-content-between bg-dark text-light small border-secondary"><span>${date}</span><span>${history[date]} 次</span></div>`;
             }
         });
-
         document.getElementById('counterDisplay').innerText = `今天已看盤 ${history[today]} 次 | 本月累計 ${monthlyTotal} 次`;
-        document.getElementById('historyList').innerHTML = listHtml || '<div class="text-muted">尚無紀錄</div>';
+        document.getElementById('historyList').innerHTML = listHtml;
     }
 
-    // --- 載入與顯示 ---
     async function loadData() {
-        const valueEl = document.getElementById('totalValue');
         try {
             const response = await fetch('data.json?t=' + new Date().getTime());
-            if (!response.ok) throw new Error("找不到 data.json，請確認 Action 是否執行成功。");
-            
-            const text = await response.text();
-            const data = JSON.parse(text);
+            const data = await response.json();
             renderDashboard(data, getStoredData().holdings);
         } catch (error) {
-            console.error(error);
-            valueEl.innerText = "載入失敗";
-            valueEl.style.color = "#ff5252";
-            document.getElementById('error-log').style.display = 'block';
-            document.getElementById('error-log').innerHTML = `錯誤詳情：${error.message}`;
+            document.getElementById('totalValue').innerText = "載入失敗";
         }
     }
 
+    // --- 修改後的計算邏輯 ---
     function renderDashboard(data, holdings) {
         const container = document.getElementById('stock-container');
         container.innerHTML = '';
@@ -191,110 +147,60 @@
         symbols.forEach(sym => {
             const stock = data.stocks[sym];
             if (!stock) return;
+            
             const shares = parseFloat(holdings[sym]) || 0;
-            const marketValue = shares * stock.price;
+            
+            // ⭐ 核心公式修改：價錢 * 股數 * 0.9976
+            const marketValue = shares * stock.price * 0.9976;
+            
             totalVal += marketValue;
             
             const isUp = stock.change >= 0;
-            const colorClass = isUp ? 'price-up' : 'price-down';
-
             container.innerHTML += `
-                <div class="card">
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="fw-bold fs-5">${sym.replace('.TW', '')}</div>
-                            <div class="stock-name">${stock.name}</div>
-                            <div class="mt-1 small text-muted">持有: ${shares.toLocaleString()}</div>
-                        </div>
-                        <div class="text-end">
-                            <div class="stock-price">NT$${stock.price.toFixed(2)}</div>
-                            <div class="${colorClass} small fw-bold">${isUp?'+':''}${stock.change_percent}%</div>
-                            <div class="mt-1 fw-bold">NT$${Math.round(marketValue).toLocaleString()}</div>
-                        </div>
-                    </div>
-                </div>`;
+                <div class="card"><div class="card-body d-flex justify-content-between align-items-center">
+                    <div><div class="fw-bold fs-5">${sym.replace('.TW', '')}</div><div class="stock-name">${stock.name}</div></div>
+                    <div class="text-end"><div class="stock-price">NT$${stock.price.toFixed(2)}</div>
+                    <div class="${isUp?'price-up':'price-down'} small fw-bold">${isUp?'+':''}${stock.change_percent}%</div>
+                    <div class="mt-1 fw-bold">NT$${Math.round(marketValue).toLocaleString()}</div></div>
+                </div></div>`;
         });
         document.getElementById('totalValue').innerHTML = `<span style="font-size:1rem;color:#888;">NT$</span> ${Math.round(totalVal).toLocaleString()}`;
     }
 
-    // --- API 更新按鈕 (讀取 LocalStorage) ---
     async function triggerUpdate() {
-        incrementCounter(); // 計數
+        incrementCounter();
         const { auth } = getStoredData();
-        const statusEl = document.getElementById('updateStatus');
         const btn = document.getElementById('updateBtn');
-
-        // 檢查是否有設定 Token
-        if (!auth.user || !auth.repo || !auth.token) {
-            alert("請先至 [設定] > [連線設定] 填入 GitHub Token 與帳號資訊！");
-            openSettings();
-            return;
-        }
-
+        if (!auth.token) { alert("請先設定 Token"); return; }
         btn.disabled = true;
-        btn.innerText = "請求更新中...";
-        statusEl.style.display = 'block';
-        statusEl.innerText = "正在連線 GitHub...";
-
         try {
-            const url = `https://api.github.com/repos/${auth.user}/${auth.repo}/actions/workflows/update.yml/dispatches`;
-            const response = await fetch(url, {
+            const res = await fetch(`https://api.github.com/repos/${auth.user}/${auth.repo}/actions/workflows/update.yml/dispatches`, {
                 method: 'POST',
-                headers: {
-                    'Accept': 'application/vnd.github+json',
-                    'Authorization': `Bearer ${auth.token}`,
-                },
+                headers: { 'Authorization': `Bearer ${auth.token}` },
                 body: JSON.stringify({ ref: 'main' }) 
             });
-
-            if (response.ok) {
-                statusEl.innerText = "✅ 更新已啟動！請等待約 60 秒後重整頁面。";
-                statusEl.className = "mt-2 small text-success";
-                setTimeout(() => { btn.disabled = false; btn.innerText = "⚡ 更新即時股價"; }, 5000);
-            } else {
-                throw new Error(`GitHub 拒絕存取 (${response.status})。請檢查 Token 是否正確。`);
-            }
-        } catch (e) {
-            statusEl.innerText = "❌ 錯誤: " + e.message;
-            statusEl.className = "mt-2 small text-danger";
-            btn.disabled = false;
-        }
+            if (res.ok) alert("更新已啟動，請稍候重整");
+        } catch (e) { alert("錯誤: " + e.message); }
+        btn.disabled = false;
     }
 
-    // --- 設定 UI 邏輯 ---
     const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
-
     function openSettings() {
         const { holdings, auth } = getStoredData();
-        // 填入股數
-        symbols.forEach(sym => document.getElementById(`input-${sym}`).value = holdings[sym] || 0);
-        // 填入連線資訊
+        symbols.forEach(sym => document.getElementById(`input-${sym}`).value = holdings[sym]);
         document.getElementById('gh-user').value = auth.user;
         document.getElementById('gh-repo').value = auth.repo;
         document.getElementById('gh-token').value = auth.token;
         modal.show();
     }
-
     function saveSettings() {
-        // 1. 儲存股數
-        const holdings = {};
-        symbols.forEach(sym => holdings[sym] = document.getElementById(`input-${sym}`).value);
-        localStorage.setItem('tw_holdings', JSON.stringify(holdings));
-
-        // 2. 儲存連線資訊 (Token)
-        const auth = {
-            user: document.getElementById('gh-user').value.trim(),
-            repo: document.getElementById('gh-repo').value.trim(),
-            token: document.getElementById('gh-token').value.trim()
-        };
-        localStorage.setItem('tw_auth', JSON.stringify(auth));
-
-        modal.hide();
-        loadData();
-        alert("設定已儲存！");
+        const h = {}; symbols.forEach(sym => h[sym] = document.getElementById(`input-${sym}`).value);
+        localStorage.setItem('tw_holdings', JSON.stringify(h));
+        const a = { user: document.getElementById('gh-user').value, repo: document.getElementById('gh-repo').value, token: document.getElementById('gh-token').value };
+        localStorage.setItem('tw_auth', JSON.stringify(a));
+        modal.hide(); loadData();
     }
 
-    // 🚀 初始化
     incrementCounter();
     loadData();
 </script>
