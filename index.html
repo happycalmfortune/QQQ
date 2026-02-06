@@ -3,23 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台灣股市資產追蹤</title>
+    <title>股市追蹤 (除錯模式)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", "Segoe UI", Roboto, sans-serif; }
+        body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; }
         .card { background-color: #1e1e1e; border: none; border-radius: 12px; margin-bottom: 15px; }
-        .price-up { color: #ff5252; } /* 紅漲 */
-        .price-down { color: #4caf50; } /* 綠跌 */
-        .stock-name { font-size: 0.8rem; color: #aaa; }
-        .stock-price { font-size: 1.4rem; font-weight: bold; }
-        .total-value { font-size: 2rem; font-weight: 800; color: #fff; }
-        .currency-label { font-size: 1rem; color: #888; font-weight: normal; }
-        .refresh-time { font-size: 0.75rem; color: #666; text-align: center; margin-top: 15px; }
-        .btn-update { width: 100%; margin-top: 10px; font-weight: bold; }
-        
-        /* 計數器樣式 */
-        .counter-box { font-size: 0.85rem; color: #ffa726; margin-top: 8px; font-weight: 500; }
-        .history-list { max-height: 200px; overflow-y: auto; font-size: 0.9rem; }
+        .price-up { color: #ff5252; }
+        .price-down { color: #4caf50; }
+        .stock-price { font-size: 1.5rem; font-weight: bold; }
+        /* 錯誤訊息專用樣式 */
+        #error-log { color: #ff5252; font-family: monospace; font-size: 0.9rem; background: #2c0b0b; padding: 10px; border-radius: 5px; display: none; margin-bottom: 20px; text-align: left;}
     </style>
 </head>
 <body>
@@ -30,16 +23,17 @@
         <button class="btn btn-outline-secondary btn-sm" onclick="openSettings()">⚙️ 設定</button>
     </div>
 
-    <div class="card mb-4 bg-gradient-primary text-center">
+    <div id="error-log"></div>
+
+    <div class="card mb-4 text-center">
         <div class="card-body p-4">
             <div class="text-secondary small">總資產價值 (TWD)</div>
-            <div class="total-value" id="totalValue">載入中...</div>
             
-            <div class="counter-box" id="counterDisplay">
-                今天已看盤 0 次 | 本月累計 0 次
-            </div>
+            <h2 id="totalValue" class="fw-bold my-3">載入中...</h2>
+            
+            <div id="counterDisplay" class="small text-warning mb-3">計數器載入中...</div>
 
-            <button id="updateBtn" class="btn btn-primary btn-sm btn-update" onclick="triggerUpdate()">
+            <button id="updateBtn" class="btn btn-primary w-100" onclick="triggerUpdate()">
                 ⚡ 更新即時股價
             </button>
             <div id="updateStatus" class="mt-2 small text-warning" style="display:none;"></div>
@@ -47,188 +41,13 @@
     </div>
 
     <div id="stock-container"></div>
-
-    <div class="refresh-time">
-        最後更新時間：<span id="lastUpdated">--</span>
-    </div>
+    <div class="text-center small text-muted mt-3">最後更新：<span id="lastUpdated">--</span></div>
 </div>
 
 <div class="modal fade" id="settingsModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">設定與統計</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
+            <div class="modal-header"><h5 class="modal-title">設定</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
             <div class="modal-body">
-                <ul class="nav nav-tabs mb-3" id="settingsTabs">
-                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#holdings-tab">持股數量</button></li>
-                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#history-tab">看盤紀錄</button></li>
-                </ul>
-                <div class="tab-content">
-                    <div class="tab-pane fade show active" id="holdings-tab">
-                        <form id="holdingsForm">
-                            <div class="mb-3"><label class="form-label">0050 (元大台灣50)</label><input type="number" class="form-control" id="input-0050.TW"></div>
-                            <div class="mb-3"><label class="form-label">006208 (富邦台50)</label><input type="number" class="form-control" id="input-006208.TW"></div>
-                            <div class="mb-3"><label class="form-label">00878 (國泰永續高股息)</label><input type="number" class="form-control" id="input-00878.TW"></div>
-                        </form>
-                        <button type="button" class="btn btn-primary w-100" onclick="saveSettings()">儲存設定</button>
-                    </div>
-                    <div class="tab-pane fade" id="history-tab">
-                        <h6>本月每日看盤次數：</h6>
-                        <div class="history-list list-group" id="historyList">
-                            </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-    // ==========================================
-    // 👇 設定區 (請在此填入你的資訊)
-    // ==========================================
-    const MY_CONFIG = {
-        user: "你的GitHub帳號",       // 例如: james123
-        repo: "你的Repo名稱",         // 例如: stock-tracker
-        token: "你的Token"           // 例如: ghp_AbCdEfG...
-    };
-    
-    // 預設股數
-    const DEFAULT_HOLDINGS = { 
-        "0050.TW": 46020, 
-        "006208.TW": 19552, 
-        "00878.TW": 52657 
-    };
-    // ==========================================
-
-    const symbols = ["0050.TW", "006208.TW", "00878.TW"];
-
-    // --- 🕒 計數器邏輯 ---
-    function incrementCounter() {
-        const now = new Date();
-        const today = now.toLocaleDateString('en-CA'); // YYYY-MM-DD 格式
-        const monthKey = today.substring(0, 7); // YYYY-MM 格式
-
-        let history = JSON.parse(localStorage.getItem('market_check_history')) || {};
-        
-        // 今天次數 +1
-        history[today] = (history[today] || 0) + 1;
-        localStorage.setItem('market_check_history', JSON.stringify(history));
-
-        updateCounterUI(history, today, monthKey);
-    }
-
-    function updateCounterUI(history, today, monthKey) {
-        let monthlyTotal = 0;
-        let listHtml = '';
-        
-        // 排序日期，從新到舊
-        const sortedDates = Object.keys(history).sort().reverse();
-
-        sortedDates.forEach(date => {
-            // 只顯示本月的紀錄
-            if (date.startsWith(monthKey)) {
-                monthlyTotal += history[date];
-                listHtml += `<div class="list-group-item d-flex justify-content-between bg-dark text-light border-secondary">
-                                <span>${date}</span>
-                                <span class="badge bg-primary rounded-pill">${history[date]} 次</span>
-                             </div>`;
-            }
-        });
-
-        document.getElementById('counterDisplay').innerText = `今天已看盤 ${history[today]} 次 | 本月累計 ${monthlyTotal} 次`;
-        document.getElementById('historyList').innerHTML = listHtml || '<div class="text-muted">本月尚無紀錄</div>';
-    }
-
-    // --- 股市資料邏輯 ---
-    function getHoldings() {
-        const stored = JSON.parse(localStorage.getItem('tw_holdings'));
-        return stored || DEFAULT_HOLDINGS;
-    }
-
-    async function loadData() {
-        const valueEl = document.getElementById('totalValue');
-        try {
-            const response = await fetch('data.json?t=' + new Date().getTime());
-            
-            if (!response.ok) {
-                throw new Error("找不到 data.json (請檢查 Action 是否執行成功)");
-            }
-
-            const text = await response.text();
-            try {
-                const data = JSON.parse(text);
-                renderDashboard(data, getHoldings());
-            } catch (e) {
-                throw new Error("JSON 格式錯誤 (Python 產生的資料有問題)");
-            }
-            
-        } catch (error) {
-            console.error(error);
-            valueEl.innerHTML = `<div style="font-size:1rem; color:red;">錯誤：${error.message}</div>`;
-            document.getElementById('stock-container').innerHTML = `<div class="alert alert-danger small">${error.message}</div>`;
-        }
-    }
-
-    function renderDashboard(data, holdings) {
-        const container = document.getElementById('stock-container');
-        container.innerHTML = '';
-        let totalVal = 0;
-        document.getElementById('lastUpdated').innerText = data.last_updated;
-
-        symbols.forEach(sym => {
-            const stock = data.stocks[sym];
-            if (!stock) return;
-            const shares = parseFloat(holdings[sym]) || 0;
-            const marketValue = shares * stock.price;
-            totalVal += marketValue;
-            
-            const isUp = stock.change >= 0;
-            const colorClass = isUp ? 'price-up' : 'price-down';
-            const sign = isUp ? '+' : '';
-
-            container.innerHTML += `
-                <div class="card">
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="fw-bold fs-5">${sym.replace('.TW', '')}</div>
-                            <div class="stock-name">${stock.name}</div>
-                            <div class="mt-2 text-white-50 small">持有股數: ${shares.toLocaleString()}</div>
-                        </div>
-                        <div class="text-end">
-                            <div class="stock-price">NT$${stock.price.toFixed(2)}</div>
-                            <div class="${colorClass} small fw-bold">${sign}${stock.change.toFixed(2)} (${sign}${stock.change_percent.toFixed(2)}%)</div>
-                            <div class="mt-2 text-white fw-bold">NT$${Math.round(marketValue).toLocaleString()}</div>
-                        </div>
-                    </div>
-                </div>`;
-        });
-        document.getElementById('totalValue').innerHTML = `<span class="currency-label">NT$</span> ${Math.round(totalVal).toLocaleString()}`;
-    }
-
-    // --- API 更新按鈕 ---
-    async function triggerUpdate() {
-        incrementCounter(); // 手動更新也算看盤一次
-        
-        const statusEl = document.getElementById('updateStatus');
-        const btn = document.getElementById('updateBtn');
-
-        if (MY_CONFIG.user === "你的GitHub帳號" || MY_CONFIG.token === "你的Token") {
-            alert("請先編輯 index.html 檔案，填入你的 Token 與 帳號資訊！");
-            return;
-        }
-
-        btn.disabled = true;
-        btn.innerText = "請求更新中...";
-        statusEl.style.display = 'block';
-        statusEl.innerText = "正在連線 GitHub...";
-
-        try {
-            const url = `https://api.github.com/repos/${MY_CONFIG.user}/${MY_CONFIG.repo}/actions/workflows/update.yml/dispatches`;
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/vnd.github
+                <form id="holdingsForm">
+                    <div class="mb
