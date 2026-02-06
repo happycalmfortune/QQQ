@@ -3,16 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>股市追蹤 (除錯模式)</title>
+    <title>台灣股市資產追蹤</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #121212; color: #e0e0e0; font-family: sans-serif; }
+        body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", "Segoe UI", Roboto, sans-serif; }
         .card { background-color: #1e1e1e; border: none; border-radius: 12px; margin-bottom: 15px; }
         .price-up { color: #ff5252; }
         .price-down { color: #4caf50; }
-        .stock-price { font-size: 1.5rem; font-weight: bold; }
-        /* 錯誤訊息專用樣式 */
-        #error-log { color: #ff5252; font-family: monospace; font-size: 0.9rem; background: #2c0b0b; padding: 10px; border-radius: 5px; display: none; margin-bottom: 20px; text-align: left;}
+        .stock-name { font-size: 0.8rem; color: #aaa; }
+        .stock-price { font-size: 1.4rem; font-weight: bold; }
+        .total-value { font-size: 2rem; font-weight: 800; color: #fff; }
+        .refresh-time { font-size: 0.75rem; color: #666; text-align: center; margin-top: 15px; }
+        .btn-update { width: 100%; margin-top: 10px; font-weight: bold; }
+        
+        /* 計數器與歷史紀錄樣式 */
+        .counter-box { font-size: 0.85rem; color: #ffa726; margin-top: 8px; font-weight: 500; }
+        .history-list { max-height: 200px; overflow-y: auto; font-size: 0.9rem; }
+        
+        /* 錯誤訊息樣式 */
+        #error-log { color: #ff5252; background: #2c0b0b; padding: 10px; border-radius: 5px; display: none; margin-bottom: 20px; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -24,30 +33,3 @@
     </div>
 
     <div id="error-log"></div>
-
-    <div class="card mb-4 text-center">
-        <div class="card-body p-4">
-            <div class="text-secondary small">總資產價值 (TWD)</div>
-            
-            <h2 id="totalValue" class="fw-bold my-3">載入中...</h2>
-            
-            <div id="counterDisplay" class="small text-warning mb-3">計數器載入中...</div>
-
-            <button id="updateBtn" class="btn btn-primary w-100" onclick="triggerUpdate()">
-                ⚡ 更新即時股價
-            </button>
-            <div id="updateStatus" class="mt-2 small text-warning" style="display:none;"></div>
-        </div>
-    </div>
-
-    <div id="stock-container"></div>
-    <div class="text-center small text-muted mt-3">最後更新：<span id="lastUpdated">--</span></div>
-</div>
-
-<div class="modal fade" id="settingsModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">設定</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-            <div class="modal-body">
-                <form id="holdingsForm">
-                    <div class="mb
