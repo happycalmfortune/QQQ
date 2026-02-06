@@ -3,35 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Q綿錢多多</title>
+    <title>台灣股市資產追蹤</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #121212; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", "Segoe UI", Roboto, sans-serif; }
         .card { background-color: #1e1e1e; border: none; border-radius: 12px; margin-bottom: 15px; }
-        .price-up { color: #ff5252; } /* 台灣股市習慣紅漲 */
-        .price-down { color: #4caf50; } /* 台灣股市習慣綠跌 */
-        .stock-name { font-size: 0.9rem; color: #aaa; }
-        .stock-price { font-size: 1.5rem; font-weight: bold; }
+        .price-up { color: #ff5252; }
+        .price-down { color: #4caf50; }
+        .stock-name { font-size: 0.8rem; color: #aaa; }
+        .stock-price { font-size: 1.4rem; font-weight: bold; }
         .total-value { font-size: 2rem; font-weight: 800; color: #fff; }
         .currency-label { font-size: 1rem; color: #888; font-weight: normal; }
-        .refresh-time { font-size: 0.75rem; color: #666; text-align: center; margin-top: 20px; }
+        .refresh-time { font-size: 0.75rem; color: #666; text-align: center; margin-top: 15px; }
         .btn-update { width: 100%; margin-top: 10px; font-weight: bold; }
+        
+        /* 計數器樣式 */
+        .counter-box { font-size: 0.85rem; color: #ffa726; margin-top: 8px; font-weight: 500; }
+        .history-list { max-height: 200px; overflow-y: auto; font-size: 0.9rem; }
+
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #121212; z-index: 9999;
+            display: flex; justify-content: center; align-items: center; flex-direction: column;
+        }
+        #app-content { display: none; }
     </style>
 </head>
 <body>
 
-<div class="container py-4">
+<div id="login-screen">
+    <div class="card p-4" style="width: 300px; text-align: center;">
+        <h4 class="mb-3">🔒 請輸入密碼</h4>
+        <input type="password" id="passwordInput" class="form-control mb-3" placeholder="密碼" onkeyup="if(event.key === 'Enter') checkPassword()">
+        <button class="btn btn-primary w-100" onclick="checkPassword()">登入</button>
+        <div id="loginError" class="text-danger mt-2 small"></div>
+    </div>
+</div>
+
+<div id="app-content" class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="m-0 fw-bold">Q綿大富翁</h4>
+        <h4 class="m-0 fw-bold">我的投資組合</h4>
         <button class="btn btn-outline-secondary btn-sm" onclick="openSettings()">⚙️ 設定</button>
     </div>
 
-    <div class="card mb-4 bg-gradient-primary">
-        <div class="card-body text-center p-4">
+    <div class="card mb-4 bg-gradient-primary text-center">
+        <div class="card-body p-4">
             <div class="text-secondary small">總資產價值 (TWD)</div>
             <div class="total-value" id="totalValue">載入中...</div>
+            
+            <div class="counter-box" id="counterDisplay">
+                今天已看盤 0 次 | 本月累計 0 次
+            </div>
+
             <button id="updateBtn" class="btn btn-primary btn-sm btn-update" onclick="triggerUpdate()">
-                ⚡ 更新即時股價-等2/7snake回家再加上這個功能
+                ⚡ 更新即時股價
             </button>
             <div id="updateStatus" class="mt-2 small text-warning" style="display:none;"></div>
         </div>
@@ -40,7 +65,7 @@
     <div id="stock-container"></div>
 
     <div class="refresh-time">
-        最後更新時間：<span id="lastUpdated">--</span>
+        最後更新：<span id="lastUpdated">--</span>
     </div>
 </div>
 
@@ -48,44 +73,29 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">設定</h5>
+                <h5 class="modal-title">設定與統計</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <ul class="nav nav-tabs mb-3" id="myTab" role="tablist">
+                <ul class="nav nav-tabs mb-3" id="settingsTabs">
                     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#holdings-tab">持股數量</button></li>
-                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#api-tab">連線設定</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#history-tab">看盤紀錄</button></li>
                 </ul>
-                
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="holdings-tab">
                         <form id="holdingsForm">
-                            <div class="mb-3"><label class="form-label">0050 (元大台灣50)</label><input type="number" class="form-control" id="input-0050.TW"></div>
-                            <div class="mb-3"><label class="form-label">006208 (富邦台50)</label><input type="number" class="form-control" id="input-006208.TW"></div>
-                            <div class="mb-3"><label class="form-label">00878 (國泰永續高股息)</label><input type="number" class="form-control" id="input-00878.TW"></div>
+                            <div class="mb-3"><label class="form-label">0050</label><input type="number" class="form-control" id="input-0050.TW"></div>
+                            <div class="mb-3"><label class="form-label">006208</label><input type="number" class="form-control" id="input-006208.TW"></div>
+                            <div class="mb-3"><label class="form-label">00878</label><input type="number" class="form-control" id="input-00878.TW"></div>
                         </form>
+                        <button type="button" class="btn btn-primary w-100" onclick="saveSettings()">儲存設定</button>
                     </div>
-
-                    <div class="tab-pane fade" id="api-tab">
-                        <div class="alert alert-secondary small">若要啟用「更新即時股價」按鈕，請填寫以下資訊：</div>
-                        <div class="mb-3">
-                            <label class="form-label">GitHub 使用者名稱 (Username)</label>
-                            <input type="text" class="form-control" id="gh-username" placeholder="例如：james123">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">GitHub 儲存庫名稱 (Repo Name)</label>
-                            <input type="text" class="form-control" id="gh-repo" placeholder="例如：stock-tracker">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">GitHub Token (PAT 密鑰)</label>
-                            <input type="password" class="form-control" id="gh-token" placeholder="ghp_...">
-                            <div class="form-text small">必須勾選 'workflow' 權限。</div>
-                        </div>
+                    <div class="tab-pane fade" id="history-tab">
+                        <h6>本月每日看盤次數：</h6>
+                        <div class="history-list list-group" id="historyList">
+                            </div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-primary w-100" onclick="saveSettings()">儲存設定</button>
             </div>
         </div>
     </div>
@@ -93,46 +103,78 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    const symbols = ["0050.TW", "006208.TW", "00878.TW"];
-    const defaultHoldings = { "0050.TW": 46020, "006208.TW": 19552, "00878.TW": 52657 };
+    // ==========================================
+    // 👇 設定區 (請填入你的資訊)
+    // ==========================================
+    const APP_PASSWORD = "1357"; 
+    const MY_CONFIG = {
+        user: "你的GitHub帳號",
+        repo: "你的Repo名稱",
+        token: "你的Token"
+    };
+    const DEFAULT_HOLDINGS = { "0050.TW": 46020, "006208.TW": 19552, "00878.TW": 52657 };
+    // ==========================================
 
-    function getSettings() {
-        return JSON.parse(localStorage.getItem('tw_settings')) || {
-            holdings: defaultHoldings,
-            auth: { user: '', repo: '', token: '' }
-        };
-    }
-
-   async function loadData() {
-        const valueEl = document.getElementById('totalValue');
-        try {
-            // 1. 嘗試讀取檔案
-            const response = await fetch('data.json?t=' + new Date().getTime());
-            
-            // 2. 如果檔案不存在 (404)
-            if (!response.ok) {
-                throw new Error("找不到 data.json (請檢查 Action 是否執行成功)");
-            }
-
-            // 3. 嘗試解析 JSON
-            const text = await response.text(); // 先讀成文字以免直接掛掉
-            try {
-                const data = JSON.parse(text);
-                renderDashboard(data, getSettings().holdings);
-            } catch (e) {
-                throw new Error("JSON 格式錯誤 (Python 產生的資料有問題)");
-            }
-            
-        } catch (error) {
-            // 把錯誤直接印在畫面上
-            console.error(error);
-            valueEl.innerHTML = `<div style="font-size:1rem; color:red;">錯誤：${error.message}</div>`;
-            document.getElementById('stock-container').innerHTML = `<div class="alert alert-danger small">${error.message}<br>請到 GitHub Actions 檢查紀錄。</div>`;
+    function checkPassword() {
+        if (document.getElementById('passwordInput').value === APP_PASSWORD) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-content').style.display = 'block';
+            incrementCounter(); // 登入成功後計數 +1
+            loadData();
+        } else {
+            document.getElementById('loginError').innerText = "密碼錯誤";
         }
     }
 
-    function renderDashboard(data, holdings) {
+    // --- 🕒 計數器邏輯 ---
+    function incrementCounter() {
+        const now = new Date();
+        const today = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const monthKey = today.substring(0, 7); // YYYY-MM
+
+        let history = JSON.parse(localStorage.getItem('market_check_history')) || {};
+        
+        // 今天次數 +1
+        history[today] = (history[today] || 0) + 1;
+        localStorage.setItem('market_check_history', JSON.stringify(history));
+
+        updateCounterUI(history, today, monthKey);
+    }
+
+    function updateCounterUI(history, today, monthKey) {
+        let monthlyTotal = 0;
+        let listHtml = '';
+        
+        // 排序日期，從新到舊
+        const sortedDates = Object.keys(history).sort().reverse();
+
+        sortedDates.forEach(date => {
+            if (date.startsWith(monthKey)) {
+                monthlyTotal += history[date];
+                listHtml += `<div class="list-group-item d-flex justify-content-between bg-dark text-light border-secondary">
+                                <span>${date}</span>
+                                <span class="badge bg-primary rounded-pill">${history[date]} 次</span>
+                             </div>`;
+            }
+        });
+
+        document.getElementById('counterDisplay').innerText = `今天已看盤 ${history[today]} 次 | 本月累計 ${monthlyTotal} 次`;
+        document.getElementById('historyList').innerHTML = listHtml || '<div class="text-muted">本月尚無紀錄</div>';
+    }
+
+    // --- 股市資料邏輯 ---
+    const symbols = ["0050.TW", "006208.TW", "00878.TW"];
+    async function loadData() {
+        try {
+            const response = await fetch('data.json?t=' + new Date().getTime());
+            const data = await response.json();
+            renderDashboard(data);
+        } catch (e) { console.error(e); }
+    }
+
+    function renderDashboard(data) {
         const container = document.getElementById('stock-container');
+        const holdings = JSON.parse(localStorage.getItem('tw_holdings')) || DEFAULT_HOLDINGS;
         container.innerHTML = '';
         let totalVal = 0;
         document.getElementById('lastUpdated').innerText = data.last_updated;
@@ -143,105 +185,47 @@
             const shares = parseFloat(holdings[sym]) || 0;
             const marketValue = shares * stock.price;
             totalVal += marketValue;
-            
-            // 台灣習慣：漲是紅色，跌是綠色
             const isUp = stock.change >= 0;
-            const colorClass = isUp ? 'price-up' : 'price-down';
-            const sign = isUp ? '+' : '';
-
             container.innerHTML += `
-                <div class="card">
-                    <div class="card-body d-flex justify-content-between align-items-center">
-                        <div>
-                            <div class="fw-bold fs-5">${sym.replace('.TW', '')}</div>
-                            <div class="stock-name">${stock.name}</div>
-                            <div class="mt-2 text-white-50 small">持有股數: ${shares.toLocaleString()}</div>
-                        </div>
-                        <div class="text-end">
-                            <div class="stock-price">NT$${stock.price.toFixed(2)}</div>
-                            <div class="${colorClass} small fw-bold">${sign}${stock.change.toFixed(2)} (${sign}${stock.change_percent.toFixed(2)}%)</div>
-                            <div class="mt-2 text-white fw-bold">NT$${Math.round(marketValue).toLocaleString()}</div>
-                        </div>
-                    </div>
-                </div>`;
+                <div class="card"><div class="card-body d-flex justify-content-between align-items-center">
+                    <div><div class="fw-bold">${sym.replace('.TW', '')}</div><div class="stock-name">${stock.name}</div></div>
+                    <div class="text-end"><div class="stock-price">NT$${stock.price.toFixed(2)}</div>
+                    <div class="${isUp?'price-up':'price-down'} small fw-bold">${isUp?'+':''}${stock.change_percent}%</div>
+                    <div class="mt-1 fw-bold">NT$${Math.round(marketValue).toLocaleString()}</div></div>
+                </div></div>`;
         });
         document.getElementById('totalValue').innerHTML = `<span class="currency-label">NT$</span> ${Math.round(totalVal).toLocaleString()}`;
     }
 
-    // --- API TRIGGER LOGIC ---
     async function triggerUpdate() {
-        const auth = getSettings().auth;
-        const statusEl = document.getElementById('updateStatus');
+        incrementCounter(); // 點擊手動更新也算看盤一次
         const btn = document.getElementById('updateBtn');
-
-        if (!auth.user || !auth.repo || !auth.token) {
-            alert("請先至 [設定] > [連線設定] 輸入您的 GitHub 資訊，才能使用此功能。");
-            openSettings();
-            return;
-        }
-
         btn.disabled = true;
-        btn.innerText = "請求更新中...";
-        statusEl.style.display = 'block';
-        statusEl.innerText = "正在連線 GitHub...";
-
         try {
-            const url = `https://api.github.com/repos/${auth.user}/${auth.repo}/actions/workflows/update.yml/dispatches`;
-            const response = await fetch(url, {
+            const url = `https://api.github.com/repos/${MY_CONFIG.user}/${MY_CONFIG.repo}/actions/workflows/update.yml/dispatches`;
+            const res = await fetch(url, {
                 method: 'POST',
-                headers: {
-                    'Accept': 'application/vnd.github+json',
-                    'Authorization': `Bearer ${auth.token}`,
-                },
-                body: JSON.stringify({ ref: 'main' }) 
+                headers: { 'Authorization': `Bearer ${MY_CONFIG.token}` },
+                body: JSON.stringify({ ref: 'main' })
             });
-
-            if (response.ok) {
-                statusEl.innerText = "更新已啟動！請等待約 60 秒後重新整理頁面。";
-                statusEl.className = "mt-2 small text-success";
-                setTimeout(() => { btn.disabled = false; btn.innerText = "⚡ 更新即時股價"; }, 5000);
-            } else {
-                throw new Error("GitHub 拒絕存取，請檢查 Token 或 Repo 名稱。");
-            }
-        } catch (e) {
-            statusEl.innerText = "錯誤: " + e.message;
-            statusEl.className = "mt-2 small text-danger";
-            btn.disabled = false;
-        }
+            if (res.ok) alert("更新已啟動，請等 60 秒後重整");
+        } catch (e) { alert("錯誤: " + e.message); }
+        btn.disabled = false;
     }
 
-    // --- SETTINGS LOGIC ---
     const modal = new bootstrap.Modal(document.getElementById('settingsModal'));
-
     function openSettings() {
-        const s = getSettings();
-        // Load Shares
-        symbols.forEach(sym => document.getElementById(`input-${sym}`).value = s.holdings[sym] || 0);
-        // Load Auth
-        document.getElementById('gh-username').value = s.auth.user;
-        document.getElementById('gh-repo').value = s.auth.repo;
-        document.getElementById('gh-token').value = s.auth.token;
+        const holdings = JSON.parse(localStorage.getItem('tw_holdings')) || DEFAULT_HOLDINGS;
+        symbols.forEach(sym => document.getElementById(`input-${sym}`).value = holdings[sym]);
         modal.show();
     }
-
     function saveSettings() {
-        const holdings = {};
-        symbols.forEach(sym => holdings[sym] = document.getElementById(`input-${sym}`).value);
-        
-        const auth = {
-            user: document.getElementById('gh-username').value.trim(),
-            repo: document.getElementById('gh-repo').value.trim(),
-            token: document.getElementById('gh-token').value.trim()
-        };
-
-        localStorage.setItem('tw_settings', JSON.stringify({ holdings, auth }));
+        const h = {};
+        symbols.forEach(sym => h[sym] = document.getElementById(`input-${sym}`).value);
+        localStorage.setItem('tw_holdings', JSON.stringify(h));
         modal.hide();
         loadData();
     }
-
-    loadData();
 </script>
 </body>
 </html>
-
-
