@@ -1,26 +1,26 @@
 {
-    "last_updated": "2026-05-21 13:08:28",
+    "last_updated": "2026-05-21 16:41:40",
     "stocks": {
         "0050.TW": {
             "name": "元大台灣50",
-            "price": 95.95,
-            "change": 3.3,
-            "change_percent": 3.56,
-            "timestamp": "2026-05-21 13:08:29"
+            "price": 95.85,
+            "change": 3.2,
+            "change_percent": 3.45,
+            "timestamp": "2026-05-21 16:41:41"
         },
         "006208.TW": {
             "name": "富邦台50",
-            "price": 221.75,
-            "change": 7.45,
-            "change_percent": 3.48,
-            "timestamp": "2026-05-21 13:08:29"
+            "price": 221.55,
+            "change": 7.25,
+            "change_percent": 3.38,
+            "timestamp": "2026-05-21 16:41:41"
         },
         "00878.TW": {
             "name": "國泰永續高股息",
-            "price": 27.74,
-            "change": 0.8,
-            "change_percent": 2.97,
-            "timestamp": "2026-05-21 13:08:29"
+            "price": 27.71,
+            "change": 0.77,
+            "change_percent": 2.86,
+            "timestamp": "2026-05-21 16:41:42"
         }
     }
 }
